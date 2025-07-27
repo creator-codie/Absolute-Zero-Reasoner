@@ -244,21 +244,18 @@ def test_dataproto_fold_unfold():
     assert data3.meta_info == {'info': 'test_info'}
 
 
-def test_torch_save_data_proto():
+def test_torch_save_data_proto(tmp_path):
 
     obs = torch.tensor([[1, 2], [3, 4], [5, 6]])
     labels = ['a', 'b', 'c']
     data = DataProto.from_dict(tensors={'obs': obs}, non_tensors={'labels': labels}, meta_info={'info': 'test_info'})
-    data.save_to_disk('test_data.pt')
-    loaded_data = DataProto.load_from_disk('test_data.pt')
+    file_path = tmp_path / 'test_data.pt'
+    data.save_to_disk(file_path)
+    loaded_data = DataProto.load_from_disk(file_path)
 
     assert torch.all(torch.eq(loaded_data.batch['obs'], data.batch['obs']))
     assert (loaded_data.non_tensor_batch['labels'] == data.non_tensor_batch['labels']).all()
     assert loaded_data.meta_info == data.meta_info
-
-    import os
-    os.remove('test_data.pt')
-
 
 def test_len():
     obs = torch.tensor([[1, 2], [3, 4], [5, 6]])
