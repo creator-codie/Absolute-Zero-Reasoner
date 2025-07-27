@@ -420,10 +420,10 @@ def parse_inputs_message(
     flags = re.DOTALL | re.IGNORECASE
 
     # Check required blocks
-    input_matches = re.finditer(input_pattern, input_str, flags)
+    input_matches = list(re.finditer(input_pattern, input_str, flags))
     if not input_matches:
         # Try alternative pattern without explicit input block
-        input_matches = re.finditer(r"# Input:\s*(.*?)(?=\n```|$)", input_str, flags)
+        input_matches = list(re.finditer(r"# Input:\s*(.*?)(?=\n```|$)", input_str, flags))
 
     # Get all inputs and take the last num_inputs
     inputs = [match.group(1).strip() for match in input_matches]
