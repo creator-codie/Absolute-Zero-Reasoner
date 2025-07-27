@@ -139,7 +139,8 @@ class RLHFDataset(Dataset):
 
     def __getitem__(self, item):
         """
-        Note that we also return the raw_input_ids so that it can be combined with other chat template
+        When ``return_raw_chat`` is True, ``raw_prompt`` is also returned so it
+        can be combined with other chat template.
         """
         row_dict = self.dataframe.iloc[item].to_dict()
 
