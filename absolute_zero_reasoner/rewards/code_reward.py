@@ -4,6 +4,7 @@ https://github.com/huggingface/open-r1
 
 import re
 import json
+import math
 from typing import Dict, Any, List, Tuple
 import ast
 import difflib
@@ -500,44 +501,42 @@ def get_type_counts_reward(answer: str, type_counters: Dict[str, Dict[str, int]]
         hierarchical: Whether to use hierarchical type counts
     """
     if hierarchical:
-        # we do not flatten we first have a distribution of the types, then we have a distribution of the elements within each type
-        # we want to maximize the suprise of the answer
-        # first, we get the distribution of the types
-        type_distribution = {}
-        for key, value in type_counters.items():
-            type_distribution[key] = sum(value.values())
+        # Build distribution over types
+        type_distribution = {k: sum(v.values()) for k, v in type_counters.items()}
+        total_types = sum(type_distribution.values())
 
-        # try to get the type, if failed default it as a string
+        # Try to infer the answer type
         try:
             answer_type = type(eval(answer)).__name__
-        except:
-            answer_type = 'str'
+        except Exception:
+            answer_type = "str"
 
-        # then, we get the "suprise" of the answer, sum of 1 - probability of answer_type and 1 - probability of the element within the type
-        suprise = 0
-        if answer_type in type_distribution:
-            suprise += 1 - (type_distribution[answer_type] / sum(type_distribution.values()))
-        else:
-            suprise += 1.0
+        # Laplace smoothing for type probability
+        num_types = len(type_distribution)
+        prob_type = (type_distribution.get(answer_type, 0) + 1) / (total_types + num_types)
+        surprise_type = -math.log(prob_type)
+
+        # Laplace smoothing for element probability within type
         if answer_type in type_counters:
-            if answer in type_counters[answer_type]:
-                suprise += 1 - (type_counters[answer_type][answer] / sum(type_counters[answer_type].values()))
-            else:
-                suprise += 1.0
+            sub_counts = type_counters[answer_type]
+            total_sub = sum(sub_counts.values())
+            num_sub = len(sub_counts)
+            prob_elem = (sub_counts.get(answer, 0) + 1) / (total_sub + num_sub)
         else:
-            suprise += 1.0
-        return suprise / 2
-    else:
-        # first flatten the type_counters, use the counts of each element as a categorical distribution, then, we get the "suprise" of the answer
-        # we want to maximize the suprise
-        # first, flatten the type_counters
-        flattened_type_counters = {}
-        for _, value in type_counters.items():
-            for sub_key, sub_value in value.items():
-                flattened_type_counters[sub_key] = sub_value
-        # then, we get the "suprise" of the answer
+            # If type not seen, assume uniform over one element
+            prob_elem = 1.0
+        surprise_elem = -math.log(prob_elem)
 
-        if answer in flattened_type_counters:
-            suprise = 1 - (flattened_type_counters[answer] / sum(flattened_type_counters.values()))
-            return suprise
-        return 1.0
+        # Average type and element surprise
+        return (surprise_type + surprise_elem) / 2
+    else:
+        # Flatten counts and compute surprise of answer directly
+        flattened = {}
+        for value in type_counters.values():
+            for key, count in value.items():
+                flattened[key] = flattened.get(key, 0) + count
+
+        total = sum(flattened.values())
+        num_elem = len(flattened)
+        prob = (flattened.get(answer, 0) + 1) / (total + num_elem)
+        return -math.log(prob)
